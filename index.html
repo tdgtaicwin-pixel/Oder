@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบสั่งของ V6 - 2 Columns</title>
+    <style>
+        :root { --primary: #05B745; --secondary: #2196F3; --danger: #f44336; }
+        body { font-family: sans-serif; background-color: #f0f2f5; margin: 0; padding: 10px; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; }
+        h1 { font-size: 1.1rem; text-align: center; color: var(--primary); margin: 5px 0; }
+        
+        /* Layout 2 คอลัมน์ */
+        .main-layout { display: flex; gap: 10px; flex: 1; overflow: hidden; margin-top: 10px; }
+        
+        /* ฝั่งซ้าย: รายการสินค้าทั้งหมด */
+        .left-panel { flex: 1; overflow-y: auto; background: #fff; padding: 10px; border-radius: 12px; border: 1px solid #ddd; }
+        
+        /* ฝั่งขวา: รายการที่เลือกแล้ว */
+        .right-panel { flex: 1; overflow-y: auto; background: #e3f2fd; padding: 10px; border-radius: 12px; border: 1px solid #bbdefb; }
+
+        h2 { font-size: 0.9rem; margin: 0 0 10px 0; text-align: center; color: #555; text-transform: uppercase; }
+
+        .product-item { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+        .product-btn { width: 100%; background: var(--secondary); color: white; border: none; padding: 12px 5px; border-radius: 6px; font-weight: bold; font-size: 13px; cursor: pointer; }
+        .edit-row { display: flex; gap: 4px; margin-top: 5px; }
+        .btn-edit { flex: 1; font-size: 10px; padding: 3px; background: #eee; border: 1px solid #ccc; border-radius: 4px; }
+        
+        .cart-item { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .qty-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 5px; }
+        .btn-qty { width: 32px; height: 32px; border-radius: 4px; border: none; color: white; font-weight: bold; font-size: 18px; }
+
+        /* ส่วนล่าง: สรุปผล */
+        .bottom-panel { background: #fff; padding: 15px; border-radius: 12px; margin-top: 10px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
+        textarea { width: 100%; margin-top: 10px; border-radius: 8px; border: 1px solid #ccc; display: none; font-size: 14px; box-sizing: border-box; padding: 8px; }
+        .footer-btns { width: 100%; padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; font-size: 1rem; cursor: pointer; margin-top: 5px; }
+
+        .add-section { margin-bottom: 10px; display: flex; gap: 5px; }
+        .add-section input { flex: 1; padding: 8px; border-radius: 5px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+
+<h1>🛒 ระบบแจ้งออเดอร์ (2 คอลัมน์)</h1>
+
+<div class="add-section">
+    <input type="text" id="newName" placeholder="เพิ่มชื่อสินค้าใหม่...">
+    <button onclick="addItem()" style="background:var(--primary); color:white; border:none; border-radius:5px; padding:0 15px;">เพิ่ม</button>
+</div>
+
+<div class="main-layout">
+    <div class="left-panel">
+        <h2>คลังสินค้า</h2>
+        <div id="inventory"></div>
+    </div>
+
+    <div class="right-panel">
+        <h2>ที่เลือกแล้ว</h2>
+        <div id="cart"></div>
+    </div>
+</div>
+
+<div class="bottom-panel">
+    <button onclick="generate()" class="footer-btns" style="background:#673AB7;">📄 สรุปรายการ</button>
+    <textarea id="out" rows="5"></textarea>
+    <button id="cp" onclick="copy()" class="footer-btns" style="background:var(--primary); display:none;">📋 คัดลอกส่ง LINE</button>
+</div>
+
+<script>
+    const defaultItems = ["น้ำมัน", "เกี๊ยว", "แป้งทอดกรอบ", "ถ้วยใส่ป่า", "ไม้เสียบ #11", "ไม้เสียบ #8", "ถุงร้อน 6*9", "ถุงร้อน 7*11", "ถุงหูหิ้ว 6*14", "ถุงหูหิ้ว 8*15", "ยางวงเล็ก", "กระดาษปูรอง", "ทิชชู่", "ข้าวคั่ว", "พริกป่น", "ผงซักฟอก", "น้ำยาล้างจาน", "กะหล่ำปลี", "คื่นช่าย", "โหระพา", "ผักชีใบเลื่อย", "แครอท", "หอมแดงอินโด", "ถุงดำใส่ขยะ", "ถุงน้ำจิ้ม 3*5", "ที่ขูดมะละกอ"];
+    
+    let db = JSON.parse(localStorage.getItem('shop_db')) || defaultItems;
+    let cart = {};
+
+    function saveDB() { localStorage.setItem('shop_db', JSON.stringify(db)); renderInventory(); }
+
+    function addItem() {
+        const input = document.getElementById('newName');
+        if(!input.value.trim()) return;
+        db.push(input.value.trim());
+        input.value = '';
+        saveDB();
+    }
+
+    function editItem(index) {
+        const newVal = prompt("แก้ไขชื่อสินค้า:", db[index]);
+        if(newVal) { db[index] = newVal; saveDB(); }
+    }
+
+    function deleteItem(index) {
+        if(confirm("ลบรายการนี้ออกจากฐานข้อมูล?")) { db.splice(index, 1); saveDB(); }
+    }
+
+    function renderInventory() {
+        const div = document.getElementById('inventory');
+        div.innerHTML = '';
+        db.forEach((name, i) => {
+            div.innerHTML += `
+                <div class="product-item">
+                    <button class="product-btn" onclick="addToCart('${name}')">${name}</button>
+                    <div class="edit-row">
+                        <button class="btn-edit" onclick="editItem(${i})">แก้</button>
+                        <button class="btn-edit" style="color:red" onclick="deleteItem(${i})">ลบ</button>
+                    </div>
+                </div>`;
+        });
+    }
+
+    function addToCart(name) {
+        cart[name] = (cart[name] || 0) + 1;
+        renderCart();
+    }
+
+    function updateQty(name, v) {
+        cart[name] += v;
+        if(cart[name] <= 0) delete cart[name];
+        renderCart();
+    }
+
+    function renderCart() {
+        const div = document.getElementById('cart');
+        div.innerHTML = '';
+        Object.keys(cart).forEach(name => {
+            div.innerHTML += `
+                <div class="cart-item">
+                    <div style="font-size:13px; font-weight:bold;">${name}</div>
+                    <div class="qty-controls">
+                        <button class="btn-qty" style="background:#ff9800" onclick="updateQty('${name}',-1)">-</button>
+                        <span style="font-size:16px; font-weight:bold;">${cart[name]}</span>
+                        <button class="btn-qty" style="background:#05B745" onclick="updateQty('${name}',1)">+</button>
+                    </div>
+                </div>`;
+        });
+    }
+
+    function generate() {
+        const keys = Object.keys(cart);
+        if(!keys.length) return alert("ยังไม่ได้เลือกของครับ");
+        let t = "📦 แจ้งออเดอร์ของหมด\n----------\n";
+        keys.forEach(n => t += `- ${n} : ${cart[n]}\n`);
+        t += "----------";
+        const out = document.getElementById('out');
+        out.value = t; out.style.display = 'block';
+        document.getElementById('cp').style.display = 'block';
+        out.scrollIntoView();
+    }
+
+    function copy() {
+        const out = document.getElementById('out');
+        out.select();
+        out.setSelectionRange(0, 99999);
+        document.execCommand('copy');
+        alert("ก๊อปปี้แล้ว! วางส่งในไลน์ได้เลย");
+    }
+
+    renderInventory();
+</script>
+</body>
+</html>
